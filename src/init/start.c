@@ -6,7 +6,7 @@
 /*   By: mdaakour <mdaakour@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/15 13:45:24 by mdaakour          #+#    #+#             */
-/*   Updated: 2026/06/15 13:45:24 by mdaakour         ###   ########.fr       */
+/*   Updated: 2026/06/16 11:37:23 by mdaakour         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,11 +22,18 @@ int	start_simulation(t_sim *sim)
 	i = 0;
 	while (i < sim->num_coders)
 	{
-		if (pthread_create(&sim->coders[i].thread, NULL,
-				coder_routine, &sim->coders[i]))
+		if (pthread_create(&sim->coders[i].thread,
+				NULL,
+				coder_routine,
+				&sim->coders[i]))
 			return (1);
 		i++;
 	}
+	if (pthread_create(&sim->monitor,
+			NULL,
+			monitor_routine,
+			sim))
+		return (1);
 	return (0);
 }
 
@@ -36,6 +43,20 @@ int	start_simulation(t_sim *sim)
 void	join_coders(t_sim *sim)
 {
 	int	i;
+
+	i = 0;
+	while (i < sim->num_coders)
+	{
+		pthread_join(sim->coders[i].thread, NULL);
+		i++;
+	}
+}
+
+void	join_threads(t_sim *sim)
+{
+	int	i;
+
+	pthread_join(sim->monitor, NULL);
 
 	i = 0;
 	while (i < sim->num_coders)

@@ -6,7 +6,7 @@
 /*   By: mdaakour <mdaakour@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/15 13:46:19 by mdaakour          #+#    #+#             */
-/*   Updated: 2026/06/15 13:48:21 by mdaakour         ###   ########.fr       */
+/*   Updated: 2026/06/16 11:39:56 by mdaakour         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,7 +22,7 @@ void	set_start_time(t_sim *sim)
 // number of dongles equals number of coders
 // we create an array of dongles
 // with pthread_mutex_init each dongle is a locked shared resource
-// (no 2 coders with same dongle)
+// this means (no 2 coders with same dongle)
 int	init_dongles(t_sim *sim)
 {
 	int	i;
@@ -68,10 +68,24 @@ int	init_coders(t_sim *sim)
 // initialize simulator
 int	init_simulation(t_sim *sim)
 {
-	if (init_dongles(sim))
+	if (pthread_mutex_init(&sim->stop_mutex, NULL))
 		return (1);
+	if (pthread_mutex_init(&sim->print_mutex, NULL))
+	{
+		pthread_mutex_destroy(&sim->stop_mutex);
+		return (1);
+	}
+	if (init_dongles(sim))
+	{
+		pthread_mutex_destroy(&sim->stop_mutex);
+		pthread_mutex_destroy(&sim->print_mutex);
+		return (1);
+	}
 	set_start_time(sim);
 	if (init_coders(sim))
+	{
+		destroy_sim(sim);
 		return (1);
+	}
 	return (0);
 }

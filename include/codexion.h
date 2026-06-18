@@ -6,7 +6,7 @@
 /*   By: mdaakour <mdaakour@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/06/15 10:53:57 by mdaakour          #+#    #+#             */
-/*   Updated: 2026/06/15 13:30:17 by mdaakour         ###   ########.fr       */
+/*   Updated: 2026/06/16 11:42:12 by mdaakour         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -105,5 +105,16 @@ void	set_start_time(t_sim *sim);
 void	*coder_routine(void *arg);
 int		start_simulation(t_sim *sim);
 void	join_coders(t_sim *sim);
+
+int		get_stop(t_sim *sim);
+void	set_stop(t_sim *sim, int value);
+
+void	print_status(t_coder *coder, char *msg);
+
+void	*monitor_routine(void *arg);
+
+void	take_dongles(t_coder *coder);
+void	release_dongles(t_coder *coder);
+void	destroy_sim(t_sim *sim);
 
 #endif
