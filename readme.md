@@ -1,4 +1,4 @@
-There is many coders, in the center there is a quantum compiler
+There are many coders, in the center there is a quantum compiler
 The coders alternatively code, debug, or refactor (they are doing one thing at a time)
 There is USB dongles in the table (they are USB dongles as many coders we have)
 Compiling code require 2 dongles

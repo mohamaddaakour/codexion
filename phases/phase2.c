@@ -19,12 +19,15 @@ typedef struct s_dongle {
 typedef struct s_coder {
 	int id;
 	int compile_count;
+	long long last_compile_start;
 
 	// to create a thread
 	pthread_t thread;
 
 	t_dongle *left;
 	t_dongle *right;
+
+	pthread_mutex_t last_compile_mutex;
 
 	t_sim *sim;
 } t_coder;
@@ -36,6 +39,10 @@ typedef struct s_sim {
 	long long time_to_debug;
 	long long time_to_refactor;
 
+	// this is the duration if one coder stay without compiling for this amount of time
+	// he will get burned out and the program will stop
+	long long time_to_burnout;
+
 	int required_compiles;
 
 	long long start_time;
@@ -46,6 +53,8 @@ typedef struct s_sim {
 
 	t_coder *coders;
 	t_dongle *dongles;
+
+	pthread_t monitor;
 } t_sim;
 
 // this function gives the current time in milleseconds
@@ -84,14 +93,21 @@ int get_stop(t_sim *sim) {
 	return stop;
 }
 
+// to modify the stop
+void set_stop(t_sim *sim, int value) {
+    pthread_mutex_lock(&sim->stop_mutex);
+    sim->stop = value;
+    pthread_mutex_unlock(&sim->stop_mutex);
+}
+
 // if multiple threads try to print to the console in the same time, we will
 // get a corrupted output for that reason we used this function
 void print_status(t_coder *coder, char *msg) {
 	// we locked to print the status of a specific thread only
 	pthread_mutex_lock(&coder -> sim -> print_mutex);
 
-	// if the coder haven't finished
-	if (!get_stop(coder -> sim)) {
+	// if the coder haven't finished or didn't burnout
+	if (!get_stop(coder -> sim) || strcmp(msg, "burned out") == 0) {
 		long long time = get_time_ms() - (coder -> sim -> start_time);
 		printf("%lld %d %s\n", time, coder -> id, msg);
 	}
@@ -105,14 +121,14 @@ void take_dongles(t_coder *c) {
 	// to prevent this we see the address of each dongle and we begin with the lower address
     if (c->left < c->right) {
         pthread_mutex_lock(&c->left->mutex);
-        print_status(c, "has taken a dongle");
+        print_status(c, "has taken a left dongle");
         pthread_mutex_lock(&c->right->mutex);
-        print_status(c, "has taken a dongle");
+        print_status(c, "has taken a right dongle");
     } else {
         pthread_mutex_lock(&c->right->mutex);
-        print_status(c, "has taken a dongle");
+        print_status(c, "has taken a right dongle");
         pthread_mutex_lock(&c->left->mutex);
-        print_status(c, "has taken a dongle");
+        print_status(c, "has taken a left dongle");
     }
 }
 
@@ -122,27 +138,27 @@ void release_dongles(t_coder *c) {
     pthread_mutex_unlock(&c->right->mutex);
 }
 
-// this is a function all coders should execute
-// when we create a thread it is required to give a generic pointer
 void *coder_routine(void *arg) {
-	// this is casting
     t_coder *c = (t_coder *)arg;
 
-	// this is just for optimization
-	// all even id's thread will sleep
     if (c->id % 2 == 0)
 		usleep(1000);
 
     while (!get_stop(c->sim)) {
         take_dongles(c);
+
+        pthread_mutex_lock(&c->last_compile_mutex);
+
+		// we take the time when the coder did his first compilation
+        c->last_compile_start = get_time_ms();
+
+        pthread_mutex_unlock(&c->last_compile_mutex);
+
         print_status(c, "is compiling");
         precise_sleep(c->sim->time_to_compile);
 
         pthread_mutex_lock(&c->sim->stop_mutex);
         c->compile_count++;
-        if (c->sim->required_compiles != -1 && c->compile_count >= c->sim->required_compiles) {
-            c->sim->stop = 1;
-        }
         pthread_mutex_unlock(&c->sim->stop_mutex);
 
         release_dongles(c);
@@ -152,63 +168,88 @@ void *coder_routine(void *arg) {
         print_status(c, "is refactoring");
         precise_sleep(c->sim->time_to_refactor);
     }
-	// this is a signature from POSIX when we create a thread the function should be ended with NULL
+    return NULL;
+}
+
+void *monitor_routine(void *arg) {
+    t_sim *sim = (t_sim *)arg;
+
+    while (!get_stop(sim)) {
+        int all_done = 1;
+        for (int i = 0; i < sim->num_coders; i++) {
+            pthread_mutex_lock(&sim->coders[i].last_compile_mutex);
+            long long last = sim->coders[i].last_compile_start;
+            pthread_mutex_unlock(&sim->coders[i].last_compile_mutex);
+
+            if (get_time_ms() - last > sim->time_to_burnout) {
+                print_status(&sim->coders[i], "burned out");
+                set_stop(sim, 1);
+                return NULL;
+            }
+
+            pthread_mutex_lock(&sim->stop_mutex);
+
+            if (sim->required_compiles == -1 || sim->coders[i].compile_count < sim->required_compiles)
+                all_done = 0;
+
+            pthread_mutex_unlock(&sim->stop_mutex);
+        }
+        if (sim->required_compiles != -1 && all_done) {
+            set_stop(sim, 1);
+            return NULL;
+        }
+        usleep(1000);
+    }
     return NULL;
 }
 
 int main(int argc, char **argv) {
-	if (argc < 7) {
-		printf("Arguments uncomplete");
+    if (argc < 7)
 		return 1;
-	}
 
-	// we create the structre of the simulation
-	t_sim sim;
+    t_sim sim;
 
-	// we fill the data for the structure
-	sim.num_coders = atoi(argv[1]);
+    sim.num_coders = atoi(argv[1]);
+    sim.time_to_burnout = atoi(argv[2]);
     sim.time_to_compile = atoi(argv[3]);
     sim.time_to_debug = atoi(argv[4]);
     sim.time_to_refactor = atoi(argv[5]);
-
-	// this means how many compiles we need to be done by each coder
     sim.required_compiles = atoi(argv[6]);
-
     sim.stop = 0;
     sim.start_time = get_time_ms();
 
-	// we create the locks
-	pthread_mutex_init(&sim.stop_mutex, NULL);
+    pthread_mutex_init(&sim.stop_mutex, NULL);
     pthread_mutex_init(&sim.print_mutex, NULL);
 
-	// we create an array of dongles and an array of coders
     sim.dongles = malloc(sizeof(t_dongle) * sim.num_coders);
     sim.coders = malloc(sizeof(t_coder) * sim.num_coders);
 
-	// we create a lock for each dongle because can't different coders have the same dongle
-	for (int i = 0; i < sim.num_coders; i++)
+    for (int i = 0; i < sim.num_coders; i++)
 		pthread_mutex_init(&sim.dongles[i].mutex, NULL);
 
-	// we create a thread for each coder
-	for (int i = 0; i < sim.num_coders; i++) {
+    for (int i = 0; i < sim.num_coders; i++) {
         sim.coders[i].id = i + 1;
         sim.coders[i].compile_count = 0;
         sim.coders[i].sim = &sim;
         sim.coders[i].left = &sim.dongles[i];
         sim.coders[i].right = &sim.dongles[(i + 1) % sim.num_coders];
-
-		// we create a thread and coder_routine is the function that will be executed in all threads created
-        pthread_create(&sim.coders[i].thread, NULL, coder_routine, &sim.coders[i]);
+        sim.coders[i].last_compile_start = sim.start_time;
+        pthread_mutex_init(&sim.coders[i].last_compile_mutex, NULL);
     }
 
-	// we have to join all the threads to prevent the program from craching without finishing
-	// the program, and to join all the threads together
-	for (int i = 0; i < sim.num_coders; i++)
-        pthread_join(sim.coders[i].thread, NULL);
+	// we have only one monitor
+    pthread_create(&sim.monitor, NULL, monitor_routine, &sim);
 
-	// we freed the 2 allocated arrays to prevent leaks
-	free(sim.dongles);
+    for (int i = 0; i < sim.num_coders; i++)
+		pthread_create(&sim.coders[i].thread, NULL, coder_routine, &sim.coders[i]);
+
+    pthread_join(sim.monitor, NULL);
+
+    for (int i = 0; i < sim.num_coders; i++)
+		pthread_join(sim.coders[i].thread, NULL);
+
+    free(sim.dongles);
 	free(sim.coders);
 
-	return 0;
+    return 0;
 }
