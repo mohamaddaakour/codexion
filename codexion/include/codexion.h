@@ -10,6 +10,7 @@
 
 typedef struct s_coder t_coder;
 typedef struct s_sim t_sim;
+typedef struct s_dongle t_dongle;
 
 // this is a structure for each coder
 typedef struct s_coder {
@@ -25,6 +26,9 @@ typedef struct s_coder {
 	pthread_mutex_t compile_count_mutex;
 
 	long long last_compile_start;
+
+	t_dongle *left;
+	t_dongle *right;
 
 	t_sim *sim;
 
@@ -53,8 +57,14 @@ typedef struct s_sim {
 	// an array of coders
 	t_coder *coders;
 
+	t_dongle *dongles;
+
 	pthread_t monitor;
 } t_sim;
+
+typedef struct s_dongle {
+	pthread_mutex_t dongle_mutex;
+} t_dongle;
 
 long long get_time_in_ms();
 void precise_sleep(long long ms);
@@ -63,5 +73,7 @@ void set_stop(t_sim *sim, int stop_value);
 void print_status(t_coder *coder, char *message);
 void *coder_routine(void *arg);
 void *monitor_routine(void *arg);
+void take_dongles(t_coder *coder);
+void release_dongles(t_coder *coder);
 
 # endif

@@ -11,6 +11,8 @@ void *coder_routine(void *arg) {
 
 	// this loop will stay for all coders until the simulation ends
 	while (!get_stop(coder->sim)) {
+		take_dongles(coder);
+
 		pthread_mutex_lock(&coder->last_compile_mutex);
 		coder->last_compile_start = get_time_in_ms();
 		pthread_mutex_unlock(&coder->last_compile_mutex);
@@ -21,6 +23,8 @@ void *coder_routine(void *arg) {
 		pthread_mutex_lock(&coder->compile_count_mutex);
 		coder->compile_count++;
 		pthread_mutex_unlock(&coder->compile_count_mutex);
+
+		release_dongles(coder);
 
 		if (get_stop(coder->sim)) {
 			break;

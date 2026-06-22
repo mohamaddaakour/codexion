@@ -7,7 +7,7 @@ int main(int argc, char **argv) {
 	// we fill all the structure with zeros
 	memset(&sim, 0, sizeof(t_sim));
 
-	if (argc < 7) {
+	if (argc != 7) {
 		printf("Arguments: coders_number time_burnout time_compile time_debug time_refactor required_compiles");
 		return 1;
 	}
@@ -23,15 +23,23 @@ int main(int argc, char **argv) {
 	pthread_mutex_init(&sim.stop_mutex, NULL);
 	pthread_mutex_init(&sim.print_mutex, NULL);
 
-	// we allocate an array of coders
+	// we allocate an array of coders and dongles
+	sim.dongles = (t_dongle *)malloc(sizeof(t_dongle) * sim.number_of_coders);
 	sim.coders = (t_coder *)malloc(sizeof(t_coder) * sim.number_of_coders);
 
 	sim.start_time = get_time_in_ms();
 
 	for (int i = 0; i < sim.number_of_coders; i++) {
+		pthread_mutex_init(&sim.dongles[i].dongle_mutex, NULL);
+	}
+
+	for (int i = 0; i < sim.number_of_coders; i++) {
 		sim.coders[i].coder_id = i + 1;
 		sim.coders[i].sim = &sim;
 		sim.coders[i].last_compile_start = sim.start_time;
+
+		sim.coders[i].left = &sim.dongles[i];
+		sim.coders[i].right = &sim.dongles[(i + 1) % sim.number_of_coders];
 
 		// we initialize the lock
 		pthread_mutex_init(&sim.coders[i].last_compile_mutex, NULL);
@@ -59,10 +67,12 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < sim.number_of_coders; i++) {
 		pthread_mutex_destroy(&sim.coders[i].last_compile_mutex);
 		pthread_mutex_destroy(&sim.coders[i].compile_count_mutex);
+		pthread_mutex_destroy(&sim.dongles[i].dongle_mutex);
 	}
 
 	// we freed the array of coders
 	free(sim.coders);
+	free(sim.dongles);
 
 	pthread_mutex_destroy(&sim.stop_mutex);
 	pthread_mutex_destroy(&sim.print_mutex);
