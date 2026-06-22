@@ -27,10 +27,10 @@ void print_status(t_coder *coder, char *message) {
 
 	pthread_mutex_lock(&coder->sim->print_mutex);
 
-	if (!get_stop(coder->sim) || strcmp(message, "burned out") == 0) {
+	if (!get_stop(coder->sim) || strcmp(message, "is burnout") == 0) {
 		time = get_time_in_ms() - coder->sim->start_time;
 
-		printf("%lld %d %s", time, coder->coder_id, message);
+		printf("%lld %d %s\n", time, coder->coder_id, message);
 	}
 
 	pthread_mutex_unlock(&coder->sim->print_mutex);

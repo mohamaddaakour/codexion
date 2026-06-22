@@ -22,7 +22,7 @@ typedef struct s_coder {
 
 	pthread_mutex_t last_compile_mutex;
 
-	pthread_mutex_t comile_count_mutex;
+	pthread_mutex_t compile_count_mutex;
 
 	long long last_compile_start;
 
@@ -52,6 +52,8 @@ typedef struct s_sim {
 
 	// an array of coders
 	t_coder *coders;
+
+	pthread_t monitor;
 } t_sim;
 
 long long get_time_in_ms();

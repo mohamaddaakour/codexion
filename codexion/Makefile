@@ -4,7 +4,7 @@ CC = cc
 
 CFLAGS = -Wall -Wextra -Werror -pthread
 
-SRC = src/time.c src/utils.c codexion.c
+SRC = src/time.c src/utils.c src/main.c src/routine.c
 
 OBJ = $(SRC:.c=.o)
 
