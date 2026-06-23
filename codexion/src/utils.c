@@ -35,3 +35,13 @@ void print_status(t_coder *coder, char *message) {
 
 	pthread_mutex_unlock(&coder->sim->print_mutex);
 }
+
+long long get_next_sequence(t_sim *sim) {
+	long long s;
+
+	pthread_mutex_lock(&sim->seq_mutex);
+	s = sim->global_sequence++;
+	pthread_mutex_unlock(&sim->seq_mutex);
+
+	return s;
+}
