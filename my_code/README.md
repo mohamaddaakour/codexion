@@ -4,12 +4,27 @@
 
 - In this project we have many coders want to compile specific amount of compiles for each coder before burn out, and they can't compile until they have two dongles left and right.
 
+- Number of coders = number of dongles.
+
 
 # **How to run the code**
 
 ```shell
+# make commands
+
+# to generate the executable file and the .o files
 make
 
+# to delete the executable file and the .o files and regcompile them again
+make re
+
+# to delete the executable file and the .o files
+make fclean
+
+# to delete the .o files only
+make clean
+
+# to run the code
 ./codexion 3 200 200 200 200 3
 ```
 
@@ -18,6 +33,8 @@ make
 
 - Thread: A thread is the smallest unit of execution within an operating system. It represents a single, independent sequence of instructions that a CPU can process. Multiple threads can exist within a single program (or process) and execute tasks simultaneously.
 
+- A deadlock in an operating system is a state where two or more processes are permanently stuck because each is waiting for a resource held by another. None of the processes can execute, halting system progress.
+
 - Per example: here we have many coders that works in the same time, so each one of them is a thread.
 
 - last_compile_start is to track the time when the coder last time compiled to check if he will burn out.
@@ -25,6 +42,10 @@ make
 - If the required_compiles equals -1 this means the program will still working until all coders finish its compiles (we don't have burnout).
 
 - If stop is 1 we have to stop the program, if 0 the program will continue.
+
+- If all_done = 1 means all coders are done compiling.
+
+- If required_compiles = -1 the coders will compile infinetly until someone burns out.
 
 
 ```c
@@ -58,6 +79,12 @@ pthread_mutex_init(&sim.stop_mutex, NULL);
 ```
 
 ```c
+// we always initialize the mutexes before creating the threads
+// we can't initialize the mutexes and create the threads in the
+// same loop
+```
+
+```c
 // this is coder routine every coder should execut it
 // the return type should be generic pointer and the parameter type
 // should be a generic pointer
@@ -76,6 +103,8 @@ void *coder_routine(void *arg)
 
         print_status(c, "is compiling");
         precise_sleep(c->sim->time_to_compile);
+
+        usleep(1000);
     }
 
     // always we return NULL in the routine

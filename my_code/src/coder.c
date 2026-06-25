@@ -24,7 +24,7 @@ void print_status(t_coder *coder, char *message) {
 
     // in case of burn out the stop is equal 1 in this case the program will stop without
     // knowing we have a burn out for this case i used strcmp
-    if (!get_stop(coder->sim) || strcmp(msg, "burned out") == 0) {
+    if (!get_stop(coder->sim) || strcmp(message, "burned out") == 0) {
         time = get_time_ms() - coder->sim->start_time;
         printf("%lld %d %s\n", time, coder->coder_id, message);
     }

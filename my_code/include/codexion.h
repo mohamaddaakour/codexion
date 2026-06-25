@@ -16,6 +16,7 @@
 
 typedef struct s_coder t_coder;
 typedef struct s_sim t_sim;
+typedef struct s_dongle t_dongle;
 
 typedef struct s_coder {
     int coder_id;
@@ -24,6 +25,9 @@ typedef struct s_coder {
     pthread_t coder_thread;
     pthread_mutex_t last_compile_mutex;
     pthread_mutex_t compile_count_mutex;
+
+    t_dongle *left;
+    t_dongle *right;
 
     t_sim *sim;
 } t_coder;
@@ -45,8 +49,14 @@ typedef struct s_sim {
 
     t_coder *coders;
 
+    t_dongle *dongles;
+
     pthread_t monitor_thread;
 } t_sim;
+
+typedef struct s_dongle {
+    pthread_mutex_t dongle_mutex;
+} t_dongle;
 
 // declaring functions
 
@@ -57,6 +67,8 @@ void set_stop(t_sim *sim, int value);
 void print_status(t_coder *coder, char *message);
 void *coder_routine(void *arg);
 void *monitor_routine(void *arg);
+void release_dongles(t_coder *coder);
+void take_dongles(t_coder *coder);
 
 
 #endif
