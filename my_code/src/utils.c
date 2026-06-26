@@ -14,3 +14,13 @@ void precise_sleep(long long ms) {
     while ((get_time_ms() - start) <= ms)
         usleep(100);
 }
+
+long long get_next_sequence(t_sim *sim) {
+    long long s;
+    
+    pthread_mutex_lock(&sim->seq_mutex);
+    s = sim->global_sequence++;
+    pthread_mutex_unlock(&sim->seq_mutex);
+    
+    return s;
+}

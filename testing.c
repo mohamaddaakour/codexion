@@ -162,11 +162,6 @@ void    heap_remove(t_heap *heap, int coder_id, int scheduler)
     heap->size = tmp_heap.size;
 }
 
-
-
-
-
-
 void    acquire_dongle(t_dongle *d, t_coder *c)
 {
     t_request   req;

@@ -23,9 +23,11 @@ make fclean
 
 # to delete the .o files only
 make clean
+```
 
+```shell
 # to run the code
-./codexion 3 200 200 200 200 3
+./codexion 3 800 200 200 200 3
 ```
 
 
@@ -46,6 +48,8 @@ make clean
 - If all_done = 1 means all coders are done compiling.
 
 - If required_compiles = -1 the coders will compile infinetly until someone burns out.
+
+- edf: earliest deadline first, and fifo: first in first out.
 
 
 ```c
@@ -80,6 +84,9 @@ pthread_mutex_init(&sim.stop_mutex, NULL);
 
 ```c
 // we always initialize the mutexes before creating the threads
+```
+
+```c
 // we can't initialize the mutexes and create the threads in the
 // same loop
 ```
@@ -194,4 +201,9 @@ typedef struct s_coder {
 // this will return 0 if the msg equals the string
 // otherwise the 2 strings are not the same
 strcmp(msg, "burned out")
+```
+
+```c
+// to create a constant
+#define FIFO 0
 ```

@@ -3,6 +3,9 @@
 #ifndef CODEXION_H
 #define CODEXION_H
 
+#define FIFO 0
+#define EDF 1
+
 // declaring libraries
 
 #include <stdio.h>
@@ -17,6 +20,8 @@
 typedef struct s_coder t_coder;
 typedef struct s_sim t_sim;
 typedef struct s_dongle t_dongle;
+typedef struct s_request t_request;
+typedef struct s_heap t_heap;
 
 typedef struct s_coder {
     int coder_id;
@@ -52,11 +57,32 @@ typedef struct s_sim {
     t_dongle *dongles;
 
     pthread_t monitor_thread;
+
+    long long dongle_cooldown;
+    int scheduler;
+    long long global_sequence;
+
+    pthread_mutex_t seq_mutex;
 } t_sim;
 
 typedef struct s_dongle {
     pthread_mutex_t dongle_mutex;
+    pthread_cond_t cond;
+    long long available_at;
+    t_heap queue;
 } t_dongle;
+
+typedef struct s_request {
+    int         coder_id;
+    long long   sequence;
+    long long   deadline;
+} t_request;
+
+typedef struct s_heap {
+    t_request   *nodes;
+    int         size;
+    int         capacity;
+} t_heap;
 
 // declaring functions
 
@@ -69,6 +95,12 @@ void *coder_routine(void *arg);
 void *monitor_routine(void *arg);
 void release_dongles(t_coder *coder);
 void take_dongles(t_coder *coder);
+int init_heap(t_heap *heap, int capacity);
+int compare_req(t_request a, t_request b, int scheduler);
+void heap_push(t_heap *heap, t_request req, int scheduler);
+void heap_pop(t_heap *heap, int scheduler);
+t_request heap_peek(t_heap *heap);
+void heap_remove(t_heap *heap, int coder_id, int scheduler);
 
 
 #endif

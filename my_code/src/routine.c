@@ -49,44 +49,44 @@ void *coder_routine(void *arg) {
 
 // if all_done = 1 means all coders are done
 // required_compiles = -1 the coders will compile infinetly until someone burns out
-void *monitor_routine(void *arg) {
+void    *monitor_routine(void *arg)
+{
     t_sim *sim = (t_sim *)arg;
-
-    while (!get_stop(sim)) {
+    while (!get_stop(sim))
+    {
         int all_done = 1;
-
-        int i = 0;
-
-        // each time we are checking for all coders
-        while (i < sim->number_of_coders) {
+        for (int i = 0; i < sim->num_coders; i++)
+        {
             pthread_mutex_lock(&sim->coders[i].last_compile_mutex);
-            long long last_compile_time = sim->coders[i].last_compile_start;
+            long long last = sim->coders[i].last_compile_start;
             pthread_mutex_unlock(&sim->coders[i].last_compile_mutex);
-
-            // if a coder exceeded the burnout time without compiling
-            if ((get_time_ms() - last_compile_time) >= sim->time_to_burnout) {
-                print_status(&sim->coders[i], "has burned out");
+            if (get_time_ms() - last > sim->time_to_burnout)
+            {
+                print_status(&sim->coders[i], "burned out");
                 set_stop(sim, 1);
-                return NULL;
+                for (int d = 0; d < sim->num_coders; d++) {
+                    pthread_mutex_lock(&sim->dongles[d].mutex);
+                    pthread_cond_broadcast(&sim->dongles[d].cond);
+                    pthread_mutex_unlock(&sim->dongles[d].mutex);
+                }
+                return (NULL);
             }
-
-            // here we check if the compilation hasn't finished yet
-            pthread_mutex_lock(&sim->coders[i].compile_count_mutex);
-			if (sim->required_compiles != -1 && sim->coders[i].compile_count < sim->required_compiles) {
-				all_done = 0;
-			}
-			pthread_mutex_unlock(&sim->coders[i].compile_count_mutex);
-
-            i++;
+            pthread_mutex_lock(&sim->stop_mutex);
+            if (sim->required_compiles == -1 || sim->coders[i].compile_count < sim->required_compiles)
+                all_done = 0;
+            pthread_mutex_unlock(&sim->stop_mutex);
         }
-
-        if (sim->required_compiles != -1 && all_done) {
-			set_stop(sim, 1);
-			return NULL;
-		}
-
+        if (sim->required_compiles != -1 && all_done)
+        {
+            set_stop(sim, 1);
+            for (int d = 0; d < sim->num_coders; d++) {
+                pthread_mutex_lock(&sim->dongles[d].mutex);
+                pthread_cond_broadcast(&sim->dongles[d].cond);
+                pthread_mutex_unlock(&sim->dongles[d].mutex);
+            }
+            return (NULL);
+        }
         usleep(1000);
     }
-
-    return NULL;
+    return (NULL);
 }
