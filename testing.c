@@ -12,6 +12,9 @@ typedef struct s_sim        t_sim;
 typedef struct s_coder      t_coder;
 typedef struct s_dongle     t_dongle;
 
+// each request (to know which coder should have the dongle)
+// contain 3 properties coder_id (the coder id, sequence number is an auto increment number to know
+// the order of asking for dongles), deadline is the time when the coder will burns out
 typedef struct s_request
 {
     int         coder_id;
@@ -19,6 +22,8 @@ typedef struct s_request
     long long   deadline;
 }   t_request;
 
+// nodes are the array of requests, size is how many requests we have in the heap
+// right now, capacity is the maximum size of the heap
 typedef struct s_heap
 {
     t_request   *nodes;
@@ -26,14 +31,24 @@ typedef struct s_heap
     int         capacity;
 }   t_heap;
 
+// mutex is the lock, 
 struct s_dongle
 {
     pthread_mutex_t mutex;
+
+    // it allows a thread to sleep while waiting for something to happen,
+    // and another thread can wake it up when that thing happens
     pthread_cond_t  cond;
+
+    // when the dongle will be available
     long long       available_at;
+
     t_heap          queue;
 };
 
+// each coder have an id, we save last time it compiles, how many time the coder compiles,
+// each coder is a thread, each coder can have left dongle and right dongle, a mutex,
+// and a simulation
 struct s_coder
 {
     int             id;
@@ -46,6 +61,7 @@ struct s_coder
     t_sim           *sim;
 };
 
+// simulation struct
 struct s_sim
 {
     int             num_coders;
@@ -74,6 +90,7 @@ void        set_stop(t_sim *sim, int value);
 void        print_status(t_coder *coder, char *msg);
 long long   get_next_sequence(t_sim *sim);
 
+// to initialize the heap
 int init_heap(t_heap *heap, int capacity)
 {
     heap->nodes = malloc(sizeof(t_request) * capacity);
@@ -83,18 +100,23 @@ int init_heap(t_heap *heap, int capacity)
     return (0);
 }
 
+// to compare the two requests and choose which one has the priority
 int compare_req(t_request a, t_request b, int scheduler)
 {
+    // if the scheduler is edf we should take the request having the lowest deadline
     if (scheduler == EDF)
     {
         if (a.deadline < b.deadline) return (-1);
         if (a.deadline > b.deadline) return (1);
     }
+
+    // if the scheduler is fifo we should take the request having the lowest sequence
     if (a.sequence < b.sequence) return (-1);
     if (a.sequence > b.sequence) return (1);
     return (0);
 }
 
+// to push a new request to the heap
 void    heap_push(t_heap *heap, t_request req, int scheduler)
 {
     if (heap->size >= heap->capacity) return;
@@ -115,6 +137,7 @@ void    heap_push(t_heap *heap, t_request req, int scheduler)
     }
 }
 
+// to remove the first element in the heap
 void    heap_pop(t_heap *heap, int scheduler)
 {
     if (heap->size <= 0) return;
@@ -139,6 +162,7 @@ void    heap_pop(t_heap *heap, int scheduler)
     }
 }
 
+// to get the first element in the heap
 t_request   heap_peek(t_heap *heap)
 {
     if (heap->size > 0) return (heap->nodes[0]);
@@ -146,6 +170,7 @@ t_request   heap_peek(t_heap *heap)
     return (null_req);
 }
 
+// to remove a specific request from the heap
 void    heap_remove(t_heap *heap, int coder_id, int scheduler)
 {
     int i = 0;
@@ -162,6 +187,7 @@ void    heap_remove(t_heap *heap, int coder_id, int scheduler)
     heap->size = tmp_heap.size;
 }
 
+// to request a dongle
 void    acquire_dongle(t_dongle *d, t_coder *c)
 {
     t_request   req;
@@ -173,34 +199,54 @@ void    acquire_dongle(t_dongle *d, t_coder *c)
     pthread_mutex_unlock(&c->last_compile_mutex);
 
     heap_push(&d->queue, req, c->sim->scheduler);
+
     while (!get_stop(c->sim))
     {
         long long now = get_time_ms();
         t_request top = heap_peek(&d->queue);
+
+        // if the first request is the coder requested the dongle and the dongle is available
+        // break
         if (top.coder_id == c->id && now >= d->available_at)
             break ;
+
+        // if the coder is the first in the queue but the dongles is used by another coder
         if (top.coder_id == c->id && d->available_at > now)
         {
             struct timespec ts;
+
+            // convert from millesconds to second
             ts.tv_sec = d->available_at / 1000;
+
+            // convert from milleseconds to nanoseconds
             ts.tv_nsec = (d->available_at % 1000) * 1000000;
+
+            // sleep until the dongle becomes available
             pthread_cond_timedwait(&d->cond, &d->mutex, &ts);
         }
         else
+            // if the coder is not the first in the queue wait until something change
             pthread_cond_wait(&d->cond, &d->mutex);
     }
+    // if the simulation doesn't stop pop because the coder takes the dongles
     if (!get_stop(c->sim))
         heap_pop(&d->queue, c->sim->scheduler);
+
+    // if the simulation end remove the request
     else
         heap_remove(&d->queue, c->id, c->sim->scheduler);
     pthread_mutex_unlock(&d->mutex);
 }
 
+
 void    release_dongle(t_dongle *d, t_sim *sim)
 {
     pthread_mutex_lock(&d->mutex);
     d->available_at = get_time_ms() + sim->dongle_cooldown;
+
+    // wake up all the waiting dongles
     pthread_cond_broadcast(&d->cond);
+
     pthread_mutex_unlock(&d->mutex);
 }
 
@@ -272,16 +318,21 @@ void    *monitor_routine(void *arg)
     t_sim *sim = (t_sim *)arg;
     while (!get_stop(sim))
     {
+        // assume first that all coders are done
         int all_done = 1;
+
         for (int i = 0; i < sim->num_coders; i++)
         {
             pthread_mutex_lock(&sim->coders[i].last_compile_mutex);
             long long last = sim->coders[i].last_compile_start;
             pthread_mutex_unlock(&sim->coders[i].last_compile_mutex);
+
             if (get_time_ms() - last > sim->time_to_burnout)
             {
                 print_status(&sim->coders[i], "burned out");
                 set_stop(sim, 1);
+
+                // wake up all sleeping coders
                 for (int d = 0; d < sim->num_coders; d++) {
                     pthread_mutex_lock(&sim->dongles[d].mutex);
                     pthread_cond_broadcast(&sim->dongles[d].cond);
@@ -289,14 +340,19 @@ void    *monitor_routine(void *arg)
                 }
                 return (NULL);
             }
+
+            // if all coders do there required compiles
             pthread_mutex_lock(&sim->stop_mutex);
             if (sim->required_compiles == -1 || sim->coders[i].compile_count < sim->required_compiles)
                 all_done = 0;
             pthread_mutex_unlock(&sim->stop_mutex);
         }
+
         if (sim->required_compiles != -1 && all_done)
         {
             set_stop(sim, 1);
+
+            // waking up all sleeping dongles
             for (int d = 0; d < sim->num_coders; d++) {
                 pthread_mutex_lock(&sim->dongles[d].mutex);
                 pthread_cond_broadcast(&sim->dongles[d].cond);
@@ -323,6 +379,7 @@ void    print_status(t_coder *coder, char *msg)
 
 long long get_time_ms(void) { struct timeval tv; gettimeofday(&tv, NULL); return ((tv.tv_sec * 1000LL) + (tv.tv_usec / 1000)); }
 void precise_sleep(long long ms) { long long s = get_time_ms(); while ((get_time_ms() - s) < ms) usleep(200); }
+
 
 void    destroy_sim(t_sim *sim)
 {
