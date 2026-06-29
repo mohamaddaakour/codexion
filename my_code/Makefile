@@ -10,8 +10,7 @@ CC = cc
 CFLAGS = -Wall -Wextra -Werror -pthread
 
 # the files .c we have
-SRC = src/utils.c src/main.c src/coder.c src/routine.c src/dongle.c src/destroy.c \
-src/heap.c src/init.c
+SRC = src/utils.c src/main.c src/coder.c src/routine.c src/dongle.c
 
 # take all .c files and create also .o files for them
 OBJ = $(SRC:.c=.o)

@@ -1,78 +1,69 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   dongle.c                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: mdaakour <mdaakour@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/29 09:52:38 by mdaakour          #+#    #+#             */
+/*   Updated: 2026/06/29 15:03:46 by mdaakour         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "../include/codexion.h"
 
-// make the coders take 2 dongles (left and right) to start compile
-void take_dongles(t_coder *coder) {
-    // if we have only one coder this means we have only one dongle
-    // so the coder will take the left dongle and burnout without compiling
-    if (coder->sim->number_of_coders == 1) {
-        pthread_mutex_lock(&coder->left->dongle_mutex);
-        print_status(coder, "has taken a dongle");
-        precise_sleep(coder->sim->time_to_burnout + 10);
+void	acquire_dongle(t_dongle *d, t_coder *c)
+{
+	t_request	req;
+	t_request	top;
+	long long	now;
 
-        return;
-    }
-
-    if (coder->left < coder->right) {
-        pthread_mutex_lock(&coder->left->dongle_mutex);
-        print_status(coder, "has taken a dongle");
-
-        pthread_mutex_lock(&coder->right->dongle_mutex);
-        print_status(coder, "has taken a dongle");
-    } else {
-        pthread_mutex_lock(&coder->right->dongle_mutex);
-        print_status(coder, "has taken a dongle");
-
-        pthread_mutex_lock(&coder->left->dongle_mutex);
-        print_status(coder, "has taken a dongle");
-    }
+	req = create_request(c);
+	pthread_mutex_lock(&d->mutex);
+	heap_push(&d->queue, req, c->sim->scheduler);
+	while (!get_stop(c->sim))
+	{
+		now = get_time_ms();
+		top = heap_peek(&d->queue);
+		if (top.coder_id == c->id && now >= d->available_at)
+			break ;
+		wait_dongle(d, now);
+	}
+	remove_request(d, c);
+	pthread_mutex_unlock(&d->mutex);
 }
 
-// make the coders release the dongles and put them back in the table
-void release_dongles(t_coder *coder) {
-    if (coder->sim->number_of_coders == 1) {
-        pthread_mutex_unlock(&coder->left->dongle_mutex);
-        return;
-    }
-
-    pthread_mutex_unlock(&coder->left->dongle_mutex);
-    pthread_mutex_unlock(&coder->right->dongle_mutex);
+void	release_dongle(t_dongle *d, t_sim *sim)
+{
+	pthread_mutex_lock(&d->mutex);
+	d->available_at = get_time_ms() + sim->dongle_cooldown;
+	pthread_cond_broadcast(&d->cond);
+	pthread_mutex_unlock(&d->mutex);
 }
 
-// when the coder ask for a dongle
-void    acquire_dongle(t_dongle *dongle, t_coder *coder) {
-    t_request req;
+void	take_dongles(t_coder *c)
+{
+	if (c->sim->number_of_coders == 1)
+	{
+		take_one(c, c->left);
+		precise_sleep(c->sim->time_to_burnout + 10);
+		return ;
+	}
+	if (c->left < c->right)
+	{
+		take_one(c, c->left);
+		take_one(c, c->right);
+	}
+	else
+	{
+		take_one(c, c->right);
+		take_one(c, c->left);
+	}
+}
 
-    pthread_mutex_lock(&dongle->dongle_mutex);
-    req.coder_id = coder->coder_id;
-    req.sequence = get_next_sequence(coder->sim);
-
-    pthread_mutex_lock(&coder->last_compile_mutex);
-    req.deadline = coder->last_compile_start + coder->sim->time_to_burnout;
-    pthread_mutex_unlock(&coder->last_compile_mutex);
-
-    heap_push(&dongle->queue, req, coder->sim->scheduler);
-
-    while (!get_stop(coder->sim)) {
-        long long now = get_time_ms();
-        t_request top = heap_peek(&dongle->queue);
-
-        if (top.coder_id == coder->coder_id && now >= dongle->available_at)
-            break;
-
-        if (top.coder_id == coder->coder_id && dongle->available_at > now) {
-            struct timespec ts;
-            ts.tv_sec = dongle->available_at / 1000;
-            ts.tv_nsec = (dongle->available_at % 1000) * 1000000;
-            pthread_cond_timedwait(&dongle->cond, &dongle->dongle_mutex, &ts);
-        }
-        else
-            pthread_cond_wait(&dongle->cond, &dongle->dongle_mutex);
-    }
-
-    if (!get_stop(coder->sim))
-        heap_pop(&dongle->queue, coder->sim->scheduler);
-    else
-        heap_remove(&dongle->queue, coder->coder_id, coder->sim->scheduler);
-
-    pthread_mutex_unlock(&dongle->dongle_mutex);
+void	release_dongles(t_coder *c)
+{
+	release_dongle(c->left, c->sim);
+	if (c->sim->number_of_coders > 1)
+		release_dongle(c->right, c->sim);
 }

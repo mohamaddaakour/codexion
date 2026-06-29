@@ -1,21 +1,30 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   time.c                                             :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: mdaakour <mdaakour@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/06/29 09:33:45 by mdaakour          #+#    #+#             */
+/*   Updated: 2026/06/29 09:33:46 by mdaakour         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "../include/codexion.h"
 
-// this function will give us the current time in milleseconds
-long long get_time_in_ms() {
-	// this is a built in structure in the sys/time.h library
-	struct timeval tv;
+long long	get_time_ms(void)
+{
+	struct timeval	tv;
 
-	// this function to enable taking tv_sec and the tv_usec
 	gettimeofday(&tv, NULL);
-
-	return ((tv.tv_sec * 1000) + (tv.tv_usec / 1000));
+	return ((tv.tv_sec * 1000LL) + (tv.tv_usec / 1000));
 }
 
-// to get a precise sleep because usleep or sleep alone are not accurate
-void precise_sleep(long long ms) {
-	long long start_time = get_time_in_ms();
+void	precise_sleep(long long ms)
+{
+	long long	start;
 
-	while ((get_time_in_ms() - start_time) < ms) {
-		usleep(100);
-	}
+	start = get_time_ms();
+	while ((get_time_ms() - start) < ms)
+		usleep(200);
 }
