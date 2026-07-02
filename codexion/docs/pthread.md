@@ -1,52 +1,16 @@
-# **Definition**
-
-- A project in 42 core curriculum done by mdaakour, the main idea of this project is to build an application using multithreading (pthread) to process multiple tasks in the same time.
-
-- In this project we have many coders want to compile specific amount of compiles for each coder before burn out, and they can't compile until they have two dongles left and right.
-
-- Number of coders = number of dongles.
-
-
-# **How to run the code**
-
-```shell
-# make commands
-
-# to generate the executable file and the .o files
-make
-
-# to delete the executable file and the .o files and regcompile them again
-make re
-
-# to delete the executable file and the .o files
-make fclean
-
-# to delete the .o files only
-make clean
-
-# to run the code
-./codexion 3 200 200 200 200 3
-```
-
-
-# **Code Explanation**
-
 - Thread: A thread is the smallest unit of execution within an operating system. It represents a single, independent sequence of instructions that a CPU can process. Multiple threads can exist within a single program (or process) and execute tasks simultaneously.
 
 - A deadlock in an operating system is a state where two or more processes are permanently stuck because each is waiting for a resource held by another. None of the processes can execute, halting system progress.
 
-- Per example: here we have many coders that works in the same time, so each one of them is a thread.
+- A race condition is a bug that occurs when multiple threads access shared data concurrently without proper synchronization, causing the program's behavior to depend on the unpredictable order in which the threads execute. It is typically prevented using synchronization mechanisms such as mutexes, semaphores, condition variables, or atomic operations.
 
-- last_compile_start is to track the time when the coder last time compiled to check if he will burn out.
+```shell
+# to run a parallel code
+# -Wall -Werror -Wextra we use this to transform any warning into an error
+gcc -Wall -Werror -Wextra -pthread file_name.c -o file_name
 
-- If the required_compiles equals -1 this means the program will still working until all coders finish its compiles (we don't have burnout).
-
-- If stop is 1 we have to stop the program, if 0 the program will continue.
-
-- If all_done = 1 means all coders are done compiling.
-
-- If required_compiles = -1 the coders will compile infinetly until someone burns out.
-
+./file_name
+```
 
 ```c
 // we have to use this library to enable pthreads methods
@@ -194,4 +158,34 @@ typedef struct s_coder {
 // this will return 0 if the msg equals the string
 // otherwise the 2 strings are not the same
 strcmp(msg, "burned out")
+```
+
+```c
+// initialize condition variable
+pthread_cond_init(&sim->dongles[i].cond, NULL);
+```
+
+```c
+// this means sleep until someone signals me
+pthread_cond_wait(&d->cond, &d->mutex);
+
+// the thread blocks forever until another thread does one of these:
+pthread_cond_signal(&d->cond);
+
+pthread_cond_broadcast(&d->cond);
+```
+
+```c
+// this means wake up all threads currently waiting on this condition variable
+pthread_cond_broadcast(&d->cond);
+```
+
+```c
+// this means wake up one random threads currentyl waiting on this condition variable
+pthread_cond_signal(&d->cond);
+```
+
+```c
+// sleep until someone signals me OR until this time arrives
+pthread_cond_timedwait(&d->cond, &d->mutex, &ts);
 ```
